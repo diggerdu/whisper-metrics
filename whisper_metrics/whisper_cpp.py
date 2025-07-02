@@ -29,13 +29,14 @@ def _load_shared_library(lib_base_name: str):
             if ggml_path.exists():
                 try:
                     ggml_lib = ctypes.CDLL(str(ggml_path))
-                    print(f"✓ Loaded GGML dependency: {ggml_path}")
                     break
                 except Exception as e:
-                    print(f"Warning: Failed to load GGML from {ggml_path}: {e}")
+                    # Continue trying other paths
+                    continue
         
         if not ggml_lib:
-            print("Warning: Could not load GGML library - whisper may fail to load")
+            # Don't print warning - just let whisper loading handle the error
+            pass
     
     _lib_paths = [
         _base_path / "bin" / f"lib{lib_base_name}{lib_ext}",

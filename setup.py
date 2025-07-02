@@ -11,8 +11,9 @@ from setuptools.command.install import install
 from setuptools.command.develop import develop
 
 def build_whisper_cpp():
-    """Build whisper.cpp and install binaries"""
-    print("🔨 Building whisper.cpp...")
+    """Build whisper.cpp and GGML libraries from source during installation"""
+    print("🔨 Building whisper.cpp and GGML from source...")
+    print("   This may take a few minutes on first installation...")
     
     # Get paths relative to setup.py
     script_dir = Path(__file__).parent.absolute()
@@ -50,35 +51,51 @@ def build_whisper_cpp():
             "-S", str(whisper_cpp_dir),
             "-B", str(cmake_build_dir),
             "-DCMAKE_BUILD_TYPE=Release",
-            "-DBUILD_SHARED_LIBS=ON"
+            "-DBUILD_SHARED_LIBS=ON",
+            "-DGGML_SHARED=ON",  # Ensure GGML builds as shared library
+            "-DWHISPER_BUILD_TESTS=OFF",
+            "-DWHISPER_BUILD_EXAMPLES=OFF"
         ])
         
-        # Build
-        print("🔧 Compiling...")
+        # Build both GGML and Whisper libraries
+        print("🔧 Compiling GGML and Whisper...")
         subprocess.check_call([
             "cmake", "--build", str(cmake_build_dir), 
-            "--config", "Release", "-j", str(os.cpu_count() or 4)
+            "--config", "Release", 
+            "--parallel", str(os.cpu_count() or 4)
         ])
         
-        # Copy the shared libraries to our bin directory
-        # Look for libwhisper.so
-        lib_whisper = cmake_build_dir / "src" / "libwhisper.so"
-        if not lib_whisper.exists():
-            lib_whisper = cmake_build_dir / "libwhisper.so"
+        # Copy the compiled shared libraries to our bin directory
+        print("📦 Copying compiled libraries...")
         
-        if lib_whisper.exists():
-            shutil.copy2(lib_whisper, bin_dir / "libwhisper.so")
-            print(f"✅ Copied {lib_whisper} to {bin_dir}")
+        # Find and copy all required shared libraries
+        libraries_to_copy = []
+        
+        # Look for libwhisper.so in various locations
+        whisper_locations = [
+            cmake_build_dir / "src" / "libwhisper.so",
+            cmake_build_dir / "libwhisper.so",
+        ]
+        
+        lib_whisper = None
+        for location in whisper_locations:
+            if location.exists():
+                lib_whisper = location
+                break
+        
+        if lib_whisper:
+            libraries_to_copy.append(("libwhisper.so", lib_whisper))
         else:
             print("❌ Could not find libwhisper.so")
             return False
         
-        # Look for libggml.so (GGML dependency)
+        # Look for libggml.so in various locations (compiled during build)
         ggml_locations = [
             cmake_build_dir / "ggml" / "src" / "libggml.so",
-            cmake_build_dir / "src" / "libggml.so",
+            cmake_build_dir / "src" / "libggml.so", 
             cmake_build_dir / "libggml.so",
-            cmake_build_dir / "ggml" / "libggml.so"
+            cmake_build_dir / "ggml" / "libggml.so",
+            cmake_build_dir / "_deps" / "ggml-build" / "src" / "libggml.so",
         ]
         
         lib_ggml = None
@@ -87,21 +104,30 @@ def build_whisper_cpp():
                 lib_ggml = location
                 break
         
-        if lib_ggml:
-            shutil.copy2(lib_ggml, bin_dir / "libggml.so")
-            print(f"✅ Copied {lib_ggml} to {bin_dir}")
-        else:
-            print("⚠️  Could not find libggml.so - searching for it...")
-            # Try to find it recursively
+        if not lib_ggml:
+            # Search recursively for libggml.so
+            print("🔍 Searching for libggml.so recursively...")
             for ggml_file in cmake_build_dir.rglob("libggml.so"):
-                shutil.copy2(ggml_file, bin_dir / "libggml.so")
-                print(f"✅ Found and copied {ggml_file} to {bin_dir}")
                 lib_ggml = ggml_file
                 break
+        
+        if lib_ggml:
+            libraries_to_copy.append(("libggml.so", lib_ggml))
+        else:
+            print("❌ Could not find libggml.so anywhere")
+            # List all .so files to help debug
+            print("🔍 Available .so files in build directory:")
+            for so_file in cmake_build_dir.rglob("*.so"):
+                print(f"     {so_file}")
+            return False
+        
+        # Copy all libraries
+        for lib_name, lib_path in libraries_to_copy:
+            shutil.copy2(lib_path, bin_dir / lib_name)
+            print(f"✅ Copied {lib_path} -> {bin_dir / lib_name}")
             
-            if not lib_ggml:
-                print("❌ Could not find libggml.so anywhere")
-                return False
+            # Set executable permissions
+            os.chmod(bin_dir / lib_name, 0o755)
         
         # Copy header file
         header_file = whisper_cpp_dir / "include" / "whisper.h"
