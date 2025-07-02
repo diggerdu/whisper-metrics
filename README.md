@@ -11,11 +11,13 @@ A Python package for calculating audio codec metrics using whisper.cpp for trans
 
 ## Installation
 
-Install directly from GitHub:
+### Quick Install
 
 ```bash
 pip install git+https://github.com/diggerdu/whisper-metrics.git
 ```
+
+**Note**: The first installation will take a few minutes as it builds whisper.cpp from source.
 
 ### Requirements
 
@@ -23,16 +25,51 @@ pip install git+https://github.com/diggerdu/whisper-metrics.git
 - Linux x86-64
 - CMake (for building whisper.cpp)
 - GCC/G++ compiler
+- Git
 
 ### System Dependencies
 
+**Ubuntu/Debian:**
+```bash
+sudo apt update
+sudo apt install cmake build-essential git
+```
+
+**CentOS/RHEL:**
+```bash
+sudo yum install cmake gcc-c++ make git
+```
+
+**For older systems, you may need:**
 ```bash
 # Ubuntu/Debian
-sudo apt update
-sudo apt install cmake build-essential
+sudo apt install python3-dev
 
-# CentOS/RHEL
-sudo yum install cmake gcc-c++ make
+# CentOS/RHEL  
+sudo yum install python3-devel
+```
+
+### Installation Process
+
+The installation automatically:
+1. 📥 Downloads whisper.cpp source code
+2. 🔨 Compiles the C++ library with optimizations
+3. 📦 Installs Python bindings and dependencies
+4. ✅ Sets up the complete package
+
+### Troubleshooting
+
+**If installation fails:**
+
+1. **Missing dependencies**: Install system dependencies above
+2. **Build errors**: Ensure you have sufficient disk space (>1GB)
+3. **Permission errors**: Use `pip install --user` for user-only installation
+4. **Network issues**: Check internet connection for downloading whisper.cpp
+
+**Force reinstall:**
+```bash
+pip uninstall whisper-metrics
+pip install --force-reinstall git+https://github.com/diggerdu/whisper-metrics.git
 ```
 
 ## Usage

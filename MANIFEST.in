@@ -1,0 +1,11 @@
+include README.md
+include LICENSE
+include INSTALLATION.md
+include PROJECT_OVERVIEW.md
+include build_whisper.py
+include generate_whisper_bindings.py
+include test_installation.py
+include test.txt
+recursive-include whisper_metrics *.py
+recursive-include whisper_metrics/bin *
+recursive-include whisper_metrics/models *
