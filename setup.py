@@ -60,17 +60,48 @@ def build_whisper_cpp():
             "--config", "Release", "-j", str(os.cpu_count() or 4)
         ])
         
-        # Copy the shared library to our bin directory
-        lib_file = cmake_build_dir / "src" / "libwhisper.so"
-        if not lib_file.exists():
-            lib_file = cmake_build_dir / "libwhisper.so"
+        # Copy the shared libraries to our bin directory
+        # Look for libwhisper.so
+        lib_whisper = cmake_build_dir / "src" / "libwhisper.so"
+        if not lib_whisper.exists():
+            lib_whisper = cmake_build_dir / "libwhisper.so"
         
-        if lib_file.exists():
-            shutil.copy2(lib_file, bin_dir / "libwhisper.so")
-            print(f"✅ Copied {lib_file} to {bin_dir}")
+        if lib_whisper.exists():
+            shutil.copy2(lib_whisper, bin_dir / "libwhisper.so")
+            print(f"✅ Copied {lib_whisper} to {bin_dir}")
         else:
             print("❌ Could not find libwhisper.so")
             return False
+        
+        # Look for libggml.so (GGML dependency)
+        ggml_locations = [
+            cmake_build_dir / "ggml" / "src" / "libggml.so",
+            cmake_build_dir / "src" / "libggml.so",
+            cmake_build_dir / "libggml.so",
+            cmake_build_dir / "ggml" / "libggml.so"
+        ]
+        
+        lib_ggml = None
+        for location in ggml_locations:
+            if location.exists():
+                lib_ggml = location
+                break
+        
+        if lib_ggml:
+            shutil.copy2(lib_ggml, bin_dir / "libggml.so")
+            print(f"✅ Copied {lib_ggml} to {bin_dir}")
+        else:
+            print("⚠️  Could not find libggml.so - searching for it...")
+            # Try to find it recursively
+            for ggml_file in cmake_build_dir.rglob("libggml.so"):
+                shutil.copy2(ggml_file, bin_dir / "libggml.so")
+                print(f"✅ Found and copied {ggml_file} to {bin_dir}")
+                lib_ggml = ggml_file
+                break
+            
+            if not lib_ggml:
+                print("❌ Could not find libggml.so anywhere")
+                return False
         
         # Copy header file
         header_file = whisper_cpp_dir / "include" / "whisper.h"

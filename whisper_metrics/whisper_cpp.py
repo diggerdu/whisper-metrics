@@ -16,6 +16,27 @@ def _load_shared_library(lib_base_name: str):
         raise RuntimeError("Unsupported platform")
 
     _base_path = pathlib.Path(__file__).parent.resolve()
+    
+    # Load GGML library first (dependency of whisper)
+    if lib_base_name == "whisper":
+        ggml_paths = [
+            _base_path / "bin" / f"libggml{lib_ext}",
+            _base_path / "bin" / f"ggml{lib_ext}",
+        ]
+        
+        ggml_lib = None
+        for ggml_path in ggml_paths:
+            if ggml_path.exists():
+                try:
+                    ggml_lib = ctypes.CDLL(str(ggml_path))
+                    print(f"✓ Loaded GGML dependency: {ggml_path}")
+                    break
+                except Exception as e:
+                    print(f"Warning: Failed to load GGML from {ggml_path}: {e}")
+        
+        if not ggml_lib:
+            print("Warning: Could not load GGML library - whisper may fail to load")
+    
     _lib_paths = [
         _base_path / "bin" / f"lib{lib_base_name}{lib_ext}",
         _base_path / "bin" / f"{lib_base_name}{lib_ext}",
