@@ -184,25 +184,37 @@ def build_whisper_cpp():
         print(f"❌ Build failed: {e}")
         return False
 
+# Global flag to track if whisper.cpp has been built
+_whisper_built = False
+
 class BuildWhisperCommand(build_py):
     """Custom build command to build whisper.cpp"""
     
     def run(self):
-        build_whisper_cpp()
+        global _whisper_built
+        if not _whisper_built:
+            build_whisper_cpp()
+            _whisper_built = True
         super().run()
 
 class InstallWhisperCommand(install):
     """Custom install command to ensure whisper.cpp is built"""
     
     def run(self):
-        build_whisper_cpp()
+        global _whisper_built
+        if not _whisper_built:
+            build_whisper_cpp()
+            _whisper_built = True
         super().run()
 
 class DevelopWhisperCommand(develop):
     """Custom develop command to ensure whisper.cpp is built"""
     
     def run(self):
-        build_whisper_cpp()
+        global _whisper_built
+        if not _whisper_built:
+            build_whisper_cpp()
+            _whisper_built = True
         super().run()
 
 with open("README.md", "r", encoding="utf-8") as fh:
