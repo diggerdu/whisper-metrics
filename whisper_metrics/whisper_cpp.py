@@ -24,25 +24,37 @@ def _load_shared_library(lib_base_name: str):
         new_ld_library_path = f"{bin_dir}:{old_ld_library_path}" if old_ld_library_path else str(bin_dir)
         os.environ['LD_LIBRARY_PATH'] = new_ld_library_path
     
-    # Load all GGML libraries first (dependencies of whisper)
+    # Load all GGML libraries first (dependencies of whisper) in proper order
     if lib_base_name == "whisper":
         ggml_libs = []
-        ggml_files = []
         
-        # Find all GGML library files
+        # Load GGML libraries in dependency order: base -> cpu -> main
+        ggml_load_order = [
+            f"libggml-base{lib_ext}",
+            f"libggml-cpu{lib_ext}", 
+            f"libggml{lib_ext}"
+        ]
+        
+        for lib_name in ggml_load_order:
+            lib_path = bin_dir / lib_name
+            if lib_path.exists():
+                try:
+                    ggml_lib = ctypes.CDLL(str(lib_path), mode=ctypes.RTLD_GLOBAL)
+                    ggml_libs.append(ggml_lib)
+                except Exception as e:
+                    # Continue with other libraries
+                    pass
+        
+        # Also try to load any other libggml*.so files we might have missed
         if bin_dir.exists():
             for f in bin_dir.iterdir():
-                if f.name.startswith("libggml") and f.name.endswith(lib_ext):
-                    ggml_files.append(f)
-        
-        # Load all GGML libraries with RTLD_GLOBAL
-        for ggml_path in ggml_files:
-            try:
-                ggml_lib = ctypes.CDLL(str(ggml_path), mode=ctypes.RTLD_GLOBAL)
-                ggml_libs.append(ggml_lib)
-            except Exception as e:
-                # Continue with other libraries
-                pass
+                if (f.name.startswith("libggml") and f.name.endswith(lib_ext) 
+                    and f.name not in ggml_load_order):
+                    try:
+                        ggml_lib = ctypes.CDLL(str(f), mode=ctypes.RTLD_GLOBAL)
+                        ggml_libs.append(ggml_lib)
+                    except Exception as e:
+                        pass
         
         if not ggml_libs:
             # List what files are actually available
