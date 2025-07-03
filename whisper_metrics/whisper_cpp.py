@@ -60,6 +60,29 @@ def _load_shared_library(lib_base_name: str):
             # List what files are actually available
             available_files = [f.name for f in bin_dir.iterdir() if f.is_file()] if bin_dir.exists() else []
             raise RuntimeError(f"Could not load any GGML library. Available files in bin/: {available_files}")
+        
+        # Check if CUDA libraries were loaded
+        cuda_loaded = False
+        for lib in ggml_libs:
+            try:
+                # Check if this is the CUDA library by filename
+                if hasattr(lib, '_name') and 'cuda' in lib._name.lower():
+                    cuda_loaded = True
+                    print("🚀 CUDA acceleration detected and loaded!")
+                    break
+            except:
+                pass
+        
+        # Also check if libggml-cuda.so was loaded
+        if not cuda_loaded:
+            for f in bin_dir.iterdir():
+                if 'cuda' in f.name.lower() and f.name.endswith('.so'):
+                    cuda_loaded = True
+                    print("🚀 CUDA acceleration detected and loaded!")
+                    break
+        
+        if not cuda_loaded:
+            print("💻 Running in CPU-only mode")
     
     _lib_paths = [
         _base_path / "bin" / f"lib{lib_base_name}{lib_ext}",
