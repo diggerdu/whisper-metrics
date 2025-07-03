@@ -121,7 +121,7 @@ WHISPER_METRICS_CUDA=1 pip install --force-reinstall git+https://github.com/digg
 
 ## Usage
 
-### Checking CUDA Availability
+### GPU Control and Status
 
 ```python
 import whisper_metrics
@@ -131,6 +131,23 @@ if whisper_metrics.is_cuda_available():
     print("🚀 CUDA acceleration is available!")
 else:
     print("💻 Running in CPU-only mode")
+
+# Initialize with explicit GPU control
+wm_gpu = whisper_metrics.WhisperMetrics(model="base", use_gpu=True)
+wm_cpu = whisper_metrics.WhisperMetrics(model="base", use_gpu=False)
+
+# Auto-detect GPU (default behavior)
+wm_auto = whisper_metrics.WhisperMetrics(model="base")  # use_gpu=None
+
+# Check current GPU status
+status = wm_gpu.get_gpu_status()
+print(f"GPU enabled: {status['requested_gpu_usage']}")
+print(f"GPU device: {status['gpu_device']}")
+print(f"CUDA available: {status['cuda_available']}")
+
+# Toggle GPU usage (will reload model)
+wm_gpu.set_gpu_usage(use_gpu=False)  # Switch to CPU
+wm_gpu.set_gpu_usage(use_gpu=True, gpu_device=1)  # Switch to GPU device 1
 ```
 
 ### Mode 1: With Reference Transcription
@@ -223,13 +240,15 @@ The test script will verify:
 ### WhisperMetrics Class
 
 ```python
-WhisperMetrics(model="base", auto_download=True, wer_config=None)
+WhisperMetrics(model="base", auto_download=True, wer_config=None, use_gpu=None, gpu_device=0)
 ```
 
 **Parameters:**
 - `model`: Model size ("tiny", "base", "small", "medium", "large")
 - `auto_download`: Automatically download models if not available
 - `wer_config`: Configuration for WER calculator
+- `use_gpu`: Enable/disable GPU acceleration (None=auto-detect, True=force GPU, False=force CPU)
+- `gpu_device`: GPU device ID for multi-GPU systems (default: 0)
 
 **Methods:**
 
@@ -237,6 +256,8 @@ WhisperMetrics(model="base", auto_download=True, wer_config=None)
 - `calculate_wer_with_reference(reference_text, audio_path, return_all_metrics=False)` - Calculate WER with reference text
 - `calculate_wer_audio_to_audio(ref_audio, gen_audio, return_all_metrics=False)` - Calculate WER between two audio files
 - `batch_calculate_wer_with_reference(ref_texts, audio_paths, return_all_metrics=False)` - Batch processing
+- `set_gpu_usage(use_gpu, gpu_device=0)` - Toggle GPU usage and reload model
+- `get_gpu_status()` - Get current GPU configuration and status
 
 ### Metrics
 

@@ -123,6 +123,26 @@ class whisper_vad_params(ctypes.Structure):
         ("placeholder", ctypes.c_int),  # Placeholder for actual VAD params
     ]
 
+# DTW alignment heads structure
+class whisper_aheads(ctypes.Structure):
+    _fields_ = [
+        ("n_heads", ctypes.c_size_t),
+        ("heads", ctypes.POINTER(ctypes.c_int)),
+    ]
+
+# Context parameters structure for GPU control
+class whisper_context_params(ctypes.Structure):
+    _fields_ = [
+        ("use_gpu", ctypes.c_bool),
+        ("flash_attn", ctypes.c_bool), 
+        ("gpu_device", ctypes.c_int),
+        ("dtw_token_timestamps", ctypes.c_bool),
+        ("dtw_aheads_preset", ctypes.c_int),  # enum whisper_alignment_heads_preset
+        ("dtw_n_top", ctypes.c_int),
+        ("dtw_aheads", whisper_aheads),
+        ("dtw_mem_size", ctypes.c_size_t),
+    ]
+
 # Grammar element structure
 class whisper_grammar_element(ctypes.Structure):
     _fields_ = [
@@ -235,6 +255,13 @@ class whisper_token_data(ctypes.Structure):
 _lib.whisper_init_from_file.argtypes = [ctypes.c_char_p]
 _lib.whisper_init_from_file.restype = ctypes.c_void_p
 
+# New context creation functions with parameters
+_lib.whisper_context_default_params.argtypes = []
+_lib.whisper_context_default_params.restype = whisper_context_params
+
+_lib.whisper_init_from_file_with_params.argtypes = [ctypes.c_char_p, whisper_context_params]
+_lib.whisper_init_from_file_with_params.restype = ctypes.c_void_p
+
 _lib.whisper_free.argtypes = [ctypes.c_void_p]
 _lib.whisper_free.restype = None
 
@@ -265,6 +292,12 @@ _lib.whisper_full_n_tokens.restype = ctypes.c_int
 # Wrapper functions for convenience
 def whisper_init_from_file(path_model: bytes) -> ctypes.c_void_p:
     return _lib.whisper_init_from_file(path_model)
+
+def whisper_context_default_params() -> whisper_context_params:
+    return _lib.whisper_context_default_params()
+
+def whisper_init_from_file_with_params(path_model: bytes, params: whisper_context_params) -> ctypes.c_void_p:
+    return _lib.whisper_init_from_file_with_params(path_model, params)
 
 def whisper_free(ctx: ctypes.c_void_p):
     _lib.whisper_free(ctx)

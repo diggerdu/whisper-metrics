@@ -12,17 +12,38 @@ class WhisperBinding:
     
     WHISPER_SR = 16000
     
-    def __init__(self):
+    def __init__(self, use_gpu: bool = True, gpu_device: int = 0):
+        """
+        Initialize WhisperBinding
+        
+        Args:
+            use_gpu: Whether to use GPU acceleration (default: True)
+            gpu_device: GPU device ID to use (default: 0)
+        """
         self.context = None
         self.params = None
+        self.use_gpu = use_gpu
+        self.gpu_device = gpu_device
     
     def load_model(self, model_path: Union[str, Path]) -> bool:
-        """Load a whisper model from file"""
+        """Load a whisper model from file with GPU control"""
         try:
             if self.context is not None:
                 whisper_cpp.whisper_free(self.context)
             
-            self.context = whisper_cpp.whisper_init_from_file(str(model_path).encode('utf-8'))
+            # Get default context parameters
+            ctx_params = whisper_cpp.whisper_context_default_params()
+            
+            # Set GPU parameters
+            ctx_params.use_gpu = self.use_gpu
+            ctx_params.gpu_device = self.gpu_device
+            ctx_params.flash_attn = False  # Default to false for stability
+            
+            # Initialize context with parameters
+            self.context = whisper_cpp.whisper_init_from_file_with_params(
+                str(model_path).encode('utf-8'), 
+                ctx_params
+            )
             if self.context is None or self.context == 0:
                 return False
             
@@ -162,6 +183,33 @@ class WhisperBinding:
         except Exception as e:
             print(f"Transcription with timestamps error: {e}")
             return []
+    
+    def set_gpu_usage(self, use_gpu: bool, gpu_device: int = 0):
+        """
+        Toggle GPU usage. Note: This requires reloading the model.
+        
+        Args:
+            use_gpu: Whether to use GPU acceleration
+            gpu_device: GPU device ID to use
+        """
+        self.use_gpu = use_gpu
+        self.gpu_device = gpu_device
+        
+        # Model needs to be reloaded with new GPU settings
+        # This will be handled by the calling code
+    
+    def get_gpu_status(self) -> dict:
+        """
+        Get current GPU configuration
+        
+        Returns:
+            Dictionary with GPU status information
+        """
+        return {
+            'use_gpu': self.use_gpu,
+            'gpu_device': self.gpu_device,
+            'context_loaded': self.context is not None
+        }
     
     def __del__(self):
         """Cleanup when object is destroyed"""

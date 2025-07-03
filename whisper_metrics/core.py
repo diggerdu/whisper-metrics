@@ -19,7 +19,9 @@ class WhisperMetrics:
     def __init__(self, 
                  model: str = "base",
                  auto_download: bool = True,
-                 wer_config: Optional[Dict[str, Any]] = None):
+                 wer_config: Optional[Dict[str, Any]] = None,
+                 use_gpu: Optional[bool] = None,
+                 gpu_device: int = 0):
         """
         Initialize WhisperMetrics
         
@@ -27,13 +29,24 @@ class WhisperMetrics:
             model: Whisper model name (tiny, base, small, medium, large)
             auto_download: Automatically download model if not available
             wer_config: Configuration for WER calculator
+            use_gpu: Whether to use GPU acceleration. If None, auto-detect based on availability
+            gpu_device: GPU device ID to use (default: 0)
         """
         self.model_name = model
         self.auto_download = auto_download
         
+        # Determine GPU usage
+        if use_gpu is None:
+            # Auto-detect GPU availability
+            from . import is_cuda_available
+            use_gpu = is_cuda_available()
+        
+        self.use_gpu = use_gpu
+        self.gpu_device = gpu_device
+        
         # Initialize components
         self.model_manager = ModelManager()
-        self.whisper_binding = WhisperBinding()
+        self.whisper_binding = WhisperBinding(use_gpu=use_gpu, gpu_device=gpu_device)
         
         # Initialize WER calculator with config
         wer_config = wer_config or {}
@@ -234,6 +247,42 @@ class WhisperMetrics:
         """
         return self.model_manager.get_model_info(self.model_name)
     
+    def set_gpu_usage(self, use_gpu: bool, gpu_device: int = 0):
+        """
+        Toggle GPU usage. This will reload the model with new GPU settings.
+        
+        Args:
+            use_gpu: Whether to use GPU acceleration
+            gpu_device: GPU device ID to use (default: 0)
+        """
+        self.use_gpu = use_gpu
+        self.gpu_device = gpu_device
+        
+        # Update whisper binding GPU settings
+        self.whisper_binding.set_gpu_usage(use_gpu, gpu_device)
+        
+        # Reload the model with new GPU settings
+        self._load_model()
+    
+    def get_gpu_status(self) -> Dict[str, Any]:
+        """
+        Get current GPU configuration and status
+        
+        Returns:
+            Dictionary with GPU status information
+        """
+        from . import is_cuda_available
+        
+        binding_status = self.whisper_binding.get_gpu_status()
+        
+        return {
+            'requested_gpu_usage': self.use_gpu,
+            'gpu_device': self.gpu_device,
+            'cuda_available': is_cuda_available(),
+            'binding_status': binding_status,
+            'model_loaded': binding_status['context_loaded']
+        }
+    
     @staticmethod
     def create_test_audio(duration: float = 5.0, 
                          noise_type: str = "white",
@@ -260,7 +309,8 @@ class WhisperMetrics:
     @staticmethod
     def quick_wer(reference_text: str, 
                   generated_audio_path: Union[str, Path],
-                  model: str = "base") -> float:
+                  model: str = "base",
+                  use_gpu: Optional[bool] = None) -> float:
         """
         Quick WER calculation with default settings
         
@@ -268,9 +318,10 @@ class WhisperMetrics:
             reference_text: Reference text
             generated_audio_path: Path to generated audio
             model: Whisper model to use
+            use_gpu: Whether to use GPU acceleration (auto-detect if None)
             
         Returns:
             WER score
         """
-        wm = WhisperMetrics(model=model)
+        wm = WhisperMetrics(model=model, use_gpu=use_gpu)
         return wm.calculate_wer_with_reference(reference_text, generated_audio_path)
