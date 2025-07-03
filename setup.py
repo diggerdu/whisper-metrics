@@ -89,37 +89,27 @@ def build_whisper_cpp():
             print("❌ Could not find libwhisper.so")
             return False
         
-        # Look for libggml.so in various locations (compiled during build)
-        ggml_locations = [
-            cmake_build_dir / "ggml" / "src" / "libggml.so",
-            cmake_build_dir / "src" / "libggml.so", 
-            cmake_build_dir / "libggml.so",
-            cmake_build_dir / "ggml" / "libggml.so",
-            cmake_build_dir / "_deps" / "ggml-build" / "src" / "libggml.so",
-        ]
+        # Find all GGML-related libraries (they may be split into multiple files)
+        print("🔍 Searching for all GGML libraries...")
+        ggml_files = []
         
-        lib_ggml = None
-        for location in ggml_locations:
-            if location.exists():
-                lib_ggml = location
-                break
+        # Search for all libggml*.so files
+        for ggml_file in cmake_build_dir.rglob("libggml*.so"):
+            ggml_files.append(ggml_file)
+            print(f"   Found GGML library: {ggml_file}")
         
-        if not lib_ggml:
-            # Search recursively for libggml.so
-            print("🔍 Searching for libggml.so recursively...")
-            for ggml_file in cmake_build_dir.rglob("libggml.so"):
-                lib_ggml = ggml_file
-                break
-        
-        if lib_ggml:
-            libraries_to_copy.append(("libggml.so", lib_ggml))
-        else:
-            print("❌ Could not find libggml.so anywhere")
+        if not ggml_files:
+            print("❌ Could not find any GGML libraries")
             # List all .so files to help debug
             print("🔍 Available .so files in build directory:")
             for so_file in cmake_build_dir.rglob("*.so"):
                 print(f"     {so_file}")
             return False
+        
+        # Add all GGML libraries to copy list
+        for ggml_file in ggml_files:
+            lib_name = ggml_file.name
+            libraries_to_copy.append((lib_name, ggml_file))
         
         # Copy all libraries
         for lib_name, lib_path in libraries_to_copy:

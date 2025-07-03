@@ -24,28 +24,30 @@ def _load_shared_library(lib_base_name: str):
         new_ld_library_path = f"{bin_dir}:{old_ld_library_path}" if old_ld_library_path else str(bin_dir)
         os.environ['LD_LIBRARY_PATH'] = new_ld_library_path
     
-    # Load GGML library first (dependency of whisper)
+    # Load all GGML libraries first (dependencies of whisper)
     if lib_base_name == "whisper":
-        ggml_paths = [
-            bin_dir / f"libggml{lib_ext}",
-            bin_dir / f"ggml{lib_ext}",
-        ]
+        ggml_libs = []
+        ggml_files = []
         
-        ggml_lib = None
-        for ggml_path in ggml_paths:
-            if ggml_path.exists():
-                try:
-                    # Load GGML with RTLD_GLOBAL so whisper can find it
-                    ggml_lib = ctypes.CDLL(str(ggml_path), mode=ctypes.RTLD_GLOBAL)
-                    break
-                except Exception as e:
-                    # Continue trying other paths
-                    continue
+        # Find all GGML library files
+        if bin_dir.exists():
+            for f in bin_dir.iterdir():
+                if f.name.startswith("libggml") and f.name.endswith(lib_ext):
+                    ggml_files.append(f)
         
-        if not ggml_lib:
+        # Load all GGML libraries with RTLD_GLOBAL
+        for ggml_path in ggml_files:
+            try:
+                ggml_lib = ctypes.CDLL(str(ggml_path), mode=ctypes.RTLD_GLOBAL)
+                ggml_libs.append(ggml_lib)
+            except Exception as e:
+                # Continue with other libraries
+                pass
+        
+        if not ggml_libs:
             # List what files are actually available
             available_files = [f.name for f in bin_dir.iterdir() if f.is_file()] if bin_dir.exists() else []
-            raise RuntimeError(f"Could not load GGML library. Available files in bin/: {available_files}")
+            raise RuntimeError(f"Could not load any GGML library. Available files in bin/: {available_files}")
     
     _lib_paths = [
         _base_path / "bin" / f"lib{lib_base_name}{lib_ext}",
