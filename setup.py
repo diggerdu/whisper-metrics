@@ -12,17 +12,30 @@ from setuptools.command.develop import develop
 
 def detect_cuda():
     """Detect if CUDA is available on the system"""
+    # First try nvcc in PATH
     try:
-        # Check if nvcc is available
         result = subprocess.run(['nvcc', '--version'], 
                                capture_output=True, text=True, timeout=10)
         if result.returncode == 0:
-            print("✅ CUDA detected - nvcc found")
+            print("✅ CUDA detected - nvcc found in PATH")
             return True
     except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.CalledProcessError):
         pass
     
-    # Check if CUDA libraries are available
+    # Try finding nvcc in common CUDA installation paths
+    cuda_paths = ['/usr/local/cuda/bin/nvcc', '/usr/local/cuda-12.4/bin/nvcc', 
+                  '/usr/local/cuda-12.1/bin/nvcc', '/usr/local/cuda-11.8/bin/nvcc']
+    for nvcc_path in cuda_paths:
+        try:
+            result = subprocess.run([nvcc_path, '--version'], 
+                                   capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                print(f"✅ CUDA detected - found nvcc at {nvcc_path}")
+                return True
+        except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.CalledProcessError):
+            continue
+    
+    # Check if CUDA libraries are available as fallback
     try:
         result = subprocess.run(['ldconfig', '-p'], 
                                capture_output=True, text=True, timeout=10)
@@ -37,9 +50,18 @@ def detect_cuda():
 
 def should_enable_cuda():
     """Determine if CUDA should be enabled based on installation options"""
-    # Check if the [cuda] extra was requested
-    if any('cuda' in arg.lower() for arg in sys.argv):
-        print("🎯 CUDA extra requested - forcing CUDA compilation")
+    # Check if the [cuda] extra was requested in various ways
+    check_patterns = ['cuda', '[cuda]', 'whisper-metrics[cuda]']
+    
+    for arg in sys.argv:
+        for pattern in check_patterns:
+            if pattern in arg.lower():
+                print("🎯 CUDA extra requested - forcing CUDA compilation")
+                return True
+    
+    # Check environment variable as fallback
+    if os.environ.get('WHISPER_METRICS_CUDA', '').lower() in ['1', 'true', 'yes']:
+        print("🎯 CUDA forced via environment variable")
         return True
     
     # For CPU-only installation, don't auto-detect CUDA
@@ -100,6 +122,24 @@ def build_whisper_cpp():
         if cuda_available:
             print("🚀 Configuring build with CUDA acceleration...")
             cmake_args.append("-DGGML_CUDA=1")
+            
+            # Set CUDA compiler path if nvcc is not in PATH
+            nvcc_path = None
+            cuda_paths = ['/usr/local/cuda/bin/nvcc', '/usr/local/cuda-12.4/bin/nvcc', 
+                          '/usr/local/cuda-12.1/bin/nvcc', '/usr/local/cuda-11.8/bin/nvcc']
+            for path in cuda_paths:
+                if os.path.exists(path):
+                    nvcc_path = path
+                    break
+            
+            if nvcc_path:
+                cmake_args.append(f"-DCMAKE_CUDA_COMPILER={nvcc_path}")
+                print(f"🎯 Using CUDA compiler: {nvcc_path}")
+                
+                # Add CUDA toolkit path
+                cuda_root = os.path.dirname(os.path.dirname(nvcc_path))
+                cmake_args.append(f"-DCUDA_TOOLKIT_ROOT_DIR={cuda_root}")
+            
             # Try to detect GPU architecture automatically
             try:
                 result = subprocess.run(['nvidia-smi', '--query-gpu=compute_cap', '--format=csv,noheader,nounits'], 
