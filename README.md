@@ -21,6 +21,10 @@ pip install git+https://github.com/diggerdu/whisper-metrics.git
 
 **With CUDA acceleration:**
 ```bash
+# Method 1: Using environment variable (recommended)
+WHISPER_METRICS_CUDA=1 pip install git+https://github.com/diggerdu/whisper-metrics.git
+
+# Method 2: Using pip extras (experimental)
 pip install git+https://github.com/diggerdu/whisper-metrics.git#egg=whisper-metrics[cuda]
 ```
 
@@ -73,6 +77,10 @@ conda install nvidia/label/cuda-12.8.1::cuda-toolkit
 
 2. **Install with CUDA support:**
 ```bash
+# Method 1: Using environment variable (recommended)
+WHISPER_METRICS_CUDA=1 pip install git+https://github.com/diggerdu/whisper-metrics.git
+
+# Method 2: Using pip extras (experimental)
 pip install git+https://github.com/diggerdu/whisper-metrics.git#egg=whisper-metrics[cuda]
 ```
 
@@ -108,7 +116,7 @@ pip install --force-reinstall git+https://github.com/diggerdu/whisper-metrics.gi
 
 # CUDA version
 pip uninstall whisper-metrics
-pip install --force-reinstall git+https://github.com/diggerdu/whisper-metrics.git#egg=whisper-metrics[cuda]
+WHISPER_METRICS_CUDA=1 pip install --force-reinstall git+https://github.com/diggerdu/whisper-metrics.git
 ```
 
 ## Usage
