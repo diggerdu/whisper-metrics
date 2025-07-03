@@ -10,10 +10,38 @@ from setuptools.command.build_py import build_py
 from setuptools.command.install import install
 from setuptools.command.develop import develop
 
+def detect_cuda():
+    """Detect if CUDA is available on the system"""
+    try:
+        # Check if nvcc is available
+        result = subprocess.run(['nvcc', '--version'], 
+                               capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            print("✅ CUDA detected - nvcc found")
+            return True
+    except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.CalledProcessError):
+        pass
+    
+    # Check if CUDA libraries are available
+    try:
+        result = subprocess.run(['ldconfig', '-p'], 
+                               capture_output=True, text=True, timeout=10)
+        if result.returncode == 0 and 'libcuda.so' in result.stdout:
+            print("✅ CUDA detected - CUDA libraries found")
+            return True
+    except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.CalledProcessError):
+        pass
+    
+    print("ℹ️  CUDA not detected - building CPU-only version")
+    return False
+
 def build_whisper_cpp():
     """Build whisper.cpp and GGML libraries from source during installation"""
     print("🔨 Building whisper.cpp and GGML from source...")
     print("   This may take a few minutes on first installation...")
+    
+    # Detect CUDA availability
+    cuda_available = detect_cuda()
     
     # Get paths relative to setup.py
     script_dir = Path(__file__).parent.absolute()
@@ -45,8 +73,7 @@ def build_whisper_cpp():
     
     try:
         # Configure with cmake
-        print("🏗️  Configuring build...")
-        subprocess.check_call([
+        cmake_args = [
             "cmake", 
             "-S", str(whisper_cpp_dir),
             "-B", str(cmake_build_dir),
@@ -55,7 +82,29 @@ def build_whisper_cpp():
             "-DGGML_SHARED=ON",  # Ensure GGML builds as shared library
             "-DWHISPER_BUILD_TESTS=OFF",
             "-DWHISPER_BUILD_EXAMPLES=OFF"
-        ])
+        ]
+        
+        # Add CUDA support if available
+        if cuda_available:
+            print("🚀 Configuring build with CUDA acceleration...")
+            cmake_args.append("-DGGML_CUDA=1")
+            # Try to detect GPU architecture automatically
+            try:
+                result = subprocess.run(['nvidia-smi', '--query-gpu=compute_cap', '--format=csv,noheader,nounits'], 
+                                       capture_output=True, text=True, timeout=10)
+                if result.returncode == 0:
+                    compute_caps = result.stdout.strip().split('\n')
+                    if compute_caps and compute_caps[0]:
+                        # Convert compute capability to architecture number
+                        compute_cap = compute_caps[0].replace('.', '')
+                        cmake_args.append(f"-DCMAKE_CUDA_ARCHITECTURES={compute_cap}")
+                        print(f"🎯 Detected GPU compute capability: {compute_caps[0]} (arch {compute_cap})")
+            except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.CalledProcessError):
+                print("ℹ️  Could not detect GPU architecture, using default CUDA architectures")
+        else:
+            print("🏗️  Configuring build for CPU-only...")
+        
+        subprocess.check_call(cmake_args)
         
         # Build both GGML and Whisper libraries
         print("🔧 Compiling GGML and Whisper...")
@@ -135,25 +184,37 @@ def build_whisper_cpp():
         print(f"❌ Build failed: {e}")
         return False
 
+# Global flag to track if whisper.cpp has been built
+_whisper_built = False
+
 class BuildWhisperCommand(build_py):
     """Custom build command to build whisper.cpp"""
     
     def run(self):
-        build_whisper_cpp()
+        global _whisper_built
+        if not _whisper_built:
+            build_whisper_cpp()
+            _whisper_built = True
         super().run()
 
 class InstallWhisperCommand(install):
     """Custom install command to ensure whisper.cpp is built"""
     
     def run(self):
-        build_whisper_cpp()
+        global _whisper_built
+        if not _whisper_built:
+            build_whisper_cpp()
+            _whisper_built = True
         super().run()
 
 class DevelopWhisperCommand(develop):
     """Custom develop command to ensure whisper.cpp is built"""
     
     def run(self):
-        build_whisper_cpp()
+        global _whisper_built
+        if not _whisper_built:
+            build_whisper_cpp()
+            _whisper_built = True
         super().run()
 
 with open("README.md", "r", encoding="utf-8") as fh:

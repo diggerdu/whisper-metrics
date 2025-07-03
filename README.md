@@ -7,6 +7,7 @@ A Python package for calculating audio codec metrics using whisper.cpp for trans
 - **Battery-included**: Automatically compiles whisper.cpp binaries and downloads model checkpoints
 - **Dual-mode operation**: Calculate WER with or without reference transcriptions
 - **High-performance**: Uses whisper.cpp C++ backend for fast transcription
+- **CUDA acceleration**: Automatic GPU acceleration when CUDA is available
 - **Linux x86-64 optimized**: Specifically designed for Linux x86-64 platforms
 
 ## Installation
@@ -49,6 +50,26 @@ sudo apt install python3-dev
 sudo yum install python3-devel
 ```
 
+### CUDA Support (Optional)
+
+For GPU acceleration, install CUDA toolkit:
+
+**Using Conda (Recommended):**
+```bash
+conda install nvidia/label/cuda-12.8.1::cuda-toolkit
+```
+
+**Using NVIDIA Installation:**
+1. Download CUDA from [NVIDIA Developer](https://developer.nvidia.com/cuda-downloads)
+2. Follow the installation guide for your Linux distribution
+
+**Requirements for CUDA:**
+- NVIDIA GPU with compute capability 5.0 or higher
+- NVIDIA driver version 450.80.02 or higher
+- CUDA toolkit 11.0 or higher
+
+The package automatically detects CUDA availability and compiles with GPU support when possible.
+
 ### Installation Process
 
 The installation automatically:
@@ -73,6 +94,18 @@ pip install --force-reinstall git+https://github.com/diggerdu/whisper-metrics.gi
 ```
 
 ## Usage
+
+### Checking CUDA Availability
+
+```python
+import whisper_metrics
+
+# Check if CUDA acceleration is available
+if whisper_metrics.is_cuda_available():
+    print("🚀 CUDA acceleration is available!")
+else:
+    print("💻 Running in CPU-only mode")
+```
 
 ### Mode 1: With Reference Transcription
 

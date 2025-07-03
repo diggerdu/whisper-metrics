@@ -28,38 +28,56 @@ def _load_shared_library(lib_base_name: str):
     if lib_base_name == "whisper":
         ggml_libs = []
         
-        # Load GGML libraries in dependency order: base -> cpu -> main
+        # First, ensure all GGML libraries are loaded with RTLD_GLOBAL
+        # so they're available when libwhisper.so tries to link against them
         ggml_load_order = [
             f"libggml-base{lib_ext}",
-            f"libggml-cpu{lib_ext}", 
+            f"libggml-cpu{lib_ext}",
+            f"libggml-cuda{lib_ext}",  # Load CUDA before main libggml
             f"libggml{lib_ext}"
         ]
         
+        loaded_libs = []
         for lib_name in ggml_load_order:
             lib_path = bin_dir / lib_name
             if lib_path.exists():
                 try:
-                    ggml_lib = ctypes.CDLL(str(lib_path), mode=ctypes.RTLD_GLOBAL)
+                    # Use absolute path from package dir and RTLD_GLOBAL so symbols are globally available
+                    ggml_lib = ctypes.CDLL(str(lib_path.absolute()), mode=ctypes.RTLD_GLOBAL)
                     ggml_libs.append(ggml_lib)
+                    loaded_libs.append(lib_name)
+                    print(f"✓ Loaded {lib_name}")
                 except Exception as e:
-                    # Continue with other libraries
-                    pass
+                    print(f"⚠️  Failed to load {lib_name}: {e}")
+                    continue
         
-        # Also try to load any other libggml*.so files we might have missed
+        # Load any other libggml*.so files we might have missed
         if bin_dir.exists():
             for f in bin_dir.iterdir():
                 if (f.name.startswith("libggml") and f.name.endswith(lib_ext) 
-                    and f.name not in ggml_load_order):
+                    and f.name not in loaded_libs):
                     try:
-                        ggml_lib = ctypes.CDLL(str(f), mode=ctypes.RTLD_GLOBAL)
+                        ggml_lib = ctypes.CDLL(str(f.absolute()), mode=ctypes.RTLD_GLOBAL)
                         ggml_libs.append(ggml_lib)
+                        loaded_libs.append(f.name)
+                        print(f"✓ Loaded additional {f.name}")
                     except Exception as e:
-                        pass
+                        print(f"⚠️  Failed to load additional {f.name}: {e}")
+                        continue
         
         if not ggml_libs:
             # List what files are actually available
             available_files = [f.name for f in bin_dir.iterdir() if f.is_file()] if bin_dir.exists() else []
             raise RuntimeError(f"Could not load any GGML library. Available files in bin/: {available_files}")
+        
+        # Check if CUDA libraries were loaded
+        cuda_loaded = any('cuda' in lib_name.lower() for lib_name in loaded_libs)
+        if cuda_loaded:
+            print("🚀 CUDA acceleration detected and loaded!")
+        else:
+            print("💻 Running in CPU-only mode")
+        
+        print(f"📦 Loaded GGML libraries: {', '.join(loaded_libs)}")
     
     _lib_paths = [
         _base_path / "bin" / f"lib{lib_base_name}{lib_ext}",
@@ -69,9 +87,11 @@ def _load_shared_library(lib_base_name: str):
     for _lib_path in _lib_paths:
         if _lib_path.exists():
             try:
-                # Load with RTLD_GLOBAL for proper symbol resolution
-                return ctypes.CDLL(str(_lib_path), mode=ctypes.RTLD_GLOBAL)
+                # Load with absolute path from package dir and RTLD_GLOBAL for proper symbol resolution
+                print(f"🔗 Loading main library: {_lib_path.name}")
+                return ctypes.CDLL(str(_lib_path.absolute()), mode=ctypes.RTLD_GLOBAL)
             except Exception as e:
+                print(f"❌ Failed to load {_lib_path.name}: {e}")
                 raise RuntimeError(f"Failed to load shared library '{_lib_path}': {e}")
 
     # List available files for debugging
