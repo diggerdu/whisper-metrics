@@ -35,13 +35,25 @@ def detect_cuda():
     print("ℹ️  CUDA not detected - building CPU-only version")
     return False
 
+def should_enable_cuda():
+    """Determine if CUDA should be enabled based on installation options"""
+    # Check if the [cuda] extra was requested
+    if any('cuda' in arg.lower() for arg in sys.argv):
+        print("🎯 CUDA extra requested - forcing CUDA compilation")
+        return True
+    
+    # For CPU-only installation, don't auto-detect CUDA
+    print("💻 Default CPU-only installation")
+    return False
+
 def build_whisper_cpp():
     """Build whisper.cpp and GGML libraries from source during installation"""
     print("🔨 Building whisper.cpp and GGML from source...")
     print("   This may take a few minutes on first installation...")
     
-    # Detect CUDA availability
-    cuda_available = detect_cuda()
+    # Determine if CUDA should be enabled
+    force_cuda = should_enable_cuda()
+    cuda_available = force_cuda and detect_cuda()
     
     # Get paths relative to setup.py
     script_dir = Path(__file__).parent.absolute()
@@ -252,6 +264,10 @@ setup(
         "scipy>=1.7.0",
     ],
     extras_require={
+        "cuda": [
+            # No additional Python dependencies for CUDA
+            # CUDA support is handled by the build system
+        ],
         "dev": [
             "pytest>=6.0",
             "black>=21.0",

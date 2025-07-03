@@ -14,8 +14,14 @@ A Python package for calculating audio codec metrics using whisper.cpp for trans
 
 ### Quick Install
 
+**CPU-only version (default):**
 ```bash
 pip install git+https://github.com/diggerdu/whisper-metrics.git
+```
+
+**With CUDA acceleration:**
+```bash
+pip install git+https://github.com/diggerdu/whisper-metrics.git[cuda]
 ```
 
 **Note**: The first installation will take a few minutes as it builds whisper.cpp from source.
@@ -52,7 +58,9 @@ sudo yum install python3-devel
 
 ### CUDA Support (Optional)
 
-For GPU acceleration, install CUDA toolkit:
+For GPU acceleration, you need to:
+
+1. **Install CUDA toolkit** before installing whisper-metrics:
 
 **Using Conda (Recommended):**
 ```bash
@@ -60,15 +68,20 @@ conda install nvidia/label/cuda-12.8.1::cuda-toolkit
 ```
 
 **Using NVIDIA Installation:**
-1. Download CUDA from [NVIDIA Developer](https://developer.nvidia.com/cuda-downloads)
-2. Follow the installation guide for your Linux distribution
+- Download CUDA from [NVIDIA Developer](https://developer.nvidia.com/cuda-downloads)
+- Follow the installation guide for your Linux distribution
+
+2. **Install with CUDA support:**
+```bash
+pip install git+https://github.com/diggerdu/whisper-metrics.git[cuda]
+```
 
 **Requirements for CUDA:**
 - NVIDIA GPU with compute capability 5.0 or higher
 - NVIDIA driver version 450.80.02 or higher
 - CUDA toolkit 11.0 or higher
 
-The package automatically detects CUDA availability and compiles with GPU support when possible.
+**Note**: The `[cuda]` extra forces CUDA compilation and requires CUDA to be installed. The default installation is CPU-only.
 
 ### Installation Process
 
@@ -89,8 +102,13 @@ The installation automatically:
 
 **Force reinstall:**
 ```bash
+# CPU-only version
 pip uninstall whisper-metrics
 pip install --force-reinstall git+https://github.com/diggerdu/whisper-metrics.git
+
+# CUDA version
+pip uninstall whisper-metrics
+pip install --force-reinstall git+https://github.com/diggerdu/whisper-metrics.git[cuda]
 ```
 
 ## Usage
