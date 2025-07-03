@@ -152,7 +152,7 @@ wm_gpu.set_gpu_usage(use_gpu=True, gpu_device=1)  # Switch to GPU device 1
 
 ### Mode 1: With Reference Transcription
 
-Calculate WER between reference text and transcribed audio:
+#### Using Audio Files
 
 ```python
 from whisper_metrics import WhisperMetrics
@@ -172,9 +172,35 @@ wer_score = wm.calculate_wer_with_reference(
 print(f"Word Error Rate: {wer_score:.3f}")
 ```
 
+#### Using Numpy Arrays (Zero File I/O Overhead)
+
+```python
+import numpy as np
+from whisper_metrics import WhisperMetrics
+
+# Initialize with model
+wm = WhisperMetrics(model="base")
+
+# Generate or load audio data as numpy array
+# Shape: [samples] for mono, [samples, channels] for multi-channel
+audio_data = np.random.randn(16000 * 5).astype(np.float32)  # 5 seconds at 16kHz
+sample_rate = 16000
+
+# Calculate WER with numpy array (much faster - no file I/O)
+reference_text = "Hello world, this is a test"
+
+wer_score = wm.calculate_wer_with_reference_numpy(
+    reference_text=reference_text,
+    generated_audio_data=audio_data,
+    sample_rate=sample_rate
+)
+
+print(f"Word Error Rate: {wer_score:.3f}")
+```
+
 ### Mode 2: Without Reference Transcription
 
-Calculate WER by transcribing both reference and generated audio:
+#### Using Audio Files
 
 ```python
 from whisper_metrics import WhisperMetrics
@@ -193,7 +219,32 @@ wer_score = wm.calculate_wer_audio_to_audio(
 print(f"Word Error Rate: {wer_score:.3f}")
 ```
 
+#### Using Numpy Arrays (Zero File I/O Overhead)
+
+```python
+import numpy as np
+from whisper_metrics import WhisperMetrics
+
+wm = WhisperMetrics(model="base")
+
+# Load or generate audio data as numpy arrays
+reference_audio = np.random.randn(16000 * 3).astype(np.float32)  # 3 seconds
+generated_audio = np.random.randn(16000 * 3).astype(np.float32)  # 3 seconds
+
+# Calculate WER with numpy arrays (much faster - no file I/O)
+wer_score = wm.calculate_wer_numpy_to_numpy(
+    reference_audio_data=reference_audio,
+    generated_audio_data=generated_audio,
+    reference_sample_rate=16000,
+    generated_sample_rate=16000
+)
+
+print(f"Word Error Rate: {wer_score:.3f}")
+```
+
 ### Direct Transcription
+
+#### Using Audio Files
 
 ```python
 # Just transcribe audio to text
@@ -204,6 +255,51 @@ print(f"Transcription: {transcription}")
 segments = wm.transcribe_audio("audio.wav", with_timestamps=True)
 for segment in segments:
     print(f"[{segment['start']:.2f}s - {segment['end']:.2f}s]: {segment['text']}")
+```
+
+#### Using Numpy Arrays (Zero File I/O Overhead)
+
+```python
+import numpy as np
+
+# Load your audio data as numpy array
+audio_data = np.random.randn(16000 * 5).astype(np.float32)  # 5 seconds at 16kHz
+
+# Direct transcription from numpy array
+transcription = wm.transcribe_numpy(audio_data, sample_rate=16000)
+print(f"Transcription: {transcription}")
+
+# With timestamps from numpy array
+segments = wm.transcribe_numpy(audio_data, sample_rate=16000, with_timestamps=True)
+for segment in segments:
+    print(f"[{segment['start']:.2f}s - {segment['end']:.2f}s]: {segment['text']}")
+
+# Automatic resampling support
+audio_44khz = np.random.randn(44100 * 2).astype(np.float32)  # 2 seconds at 44.1kHz
+transcription = wm.transcribe_numpy(audio_44khz, sample_rate=44100)  # Auto-resamples to 16kHz
+```
+
+### Batch Processing with Numpy Arrays
+
+```python
+import numpy as np
+
+# Process multiple audio arrays efficiently
+reference_texts = ["Hello world", "How are you", "Good morning"]
+audio_arrays = [
+    np.random.randn(16000 * 2).astype(np.float32),  # 2 seconds
+    np.random.randn(16000 * 3).astype(np.float32),  # 3 seconds  
+    np.random.randn(16000 * 1).astype(np.float32),  # 1 second
+]
+
+# Batch WER calculation with numpy arrays
+wer_scores = wm.batch_calculate_wer_with_reference_numpy(
+    reference_texts=reference_texts,
+    generated_audio_arrays=audio_arrays,
+    sample_rates=16000  # Single rate for all, or list of rates
+)
+
+print("WER scores:", wer_scores)
 ```
 
 ## Testing Installation
@@ -252,12 +348,27 @@ WhisperMetrics(model="base", auto_download=True, wer_config=None, use_gpu=None, 
 
 **Methods:**
 
+#### File-based Methods
 - `transcribe_audio(audio_path, with_timestamps=False)` - Transcribe audio file
 - `calculate_wer_with_reference(reference_text, audio_path, return_all_metrics=False)` - Calculate WER with reference text
 - `calculate_wer_audio_to_audio(ref_audio, gen_audio, return_all_metrics=False)` - Calculate WER between two audio files
 - `batch_calculate_wer_with_reference(ref_texts, audio_paths, return_all_metrics=False)` - Batch processing
+
+#### Numpy Array Methods (Zero File I/O Overhead)
+- `transcribe_numpy(audio_data, sample_rate=16000, with_timestamps=False)` - Transcribe numpy audio array
+- `calculate_wer_with_reference_numpy(reference_text, audio_data, sample_rate=16000, return_all_metrics=False)` - Calculate WER with reference text and numpy array
+- `calculate_wer_numpy_to_numpy(ref_audio_data, gen_audio_data, ref_sample_rate=16000, gen_sample_rate=16000, return_all_metrics=False)` - Calculate WER between two numpy arrays
+- `batch_calculate_wer_with_reference_numpy(ref_texts, audio_arrays, sample_rates=16000, return_all_metrics=False)` - Batch processing with numpy arrays
+- `batch_calculate_wer_numpy_to_numpy(ref_audio_arrays, gen_audio_arrays, ref_sample_rates=16000, gen_sample_rates=16000, return_all_metrics=False)` - Batch processing with numpy array pairs
+- `evaluate_with_detailed_output_numpy(reference_text, audio_data, sample_rate=16000)` - Detailed evaluation with numpy array
+
+#### GPU and Model Control
 - `set_gpu_usage(use_gpu, gpu_device=0)` - Toggle GPU usage and reload model
 - `get_gpu_status()` - Get current GPU configuration and status
+
+#### Static Methods
+- `quick_wer(reference_text, audio_path, model="base", use_gpu=None)` - Quick WER calculation with file
+- `quick_wer_numpy(reference_text, audio_data, sample_rate=16000, model="base", use_gpu=None)` - Quick WER calculation with numpy array
 
 ### Metrics
 
