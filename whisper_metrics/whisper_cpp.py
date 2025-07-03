@@ -16,27 +16,36 @@ def _load_shared_library(lib_base_name: str):
         raise RuntimeError("Unsupported platform")
 
     _base_path = pathlib.Path(__file__).parent.resolve()
+    bin_dir = _base_path / "bin"
+    
+    # Add bin directory to library search path temporarily
+    old_ld_library_path = os.environ.get('LD_LIBRARY_PATH', '')
+    if str(bin_dir) not in old_ld_library_path:
+        new_ld_library_path = f"{bin_dir}:{old_ld_library_path}" if old_ld_library_path else str(bin_dir)
+        os.environ['LD_LIBRARY_PATH'] = new_ld_library_path
     
     # Load GGML library first (dependency of whisper)
     if lib_base_name == "whisper":
         ggml_paths = [
-            _base_path / "bin" / f"libggml{lib_ext}",
-            _base_path / "bin" / f"ggml{lib_ext}",
+            bin_dir / f"libggml{lib_ext}",
+            bin_dir / f"ggml{lib_ext}",
         ]
         
         ggml_lib = None
         for ggml_path in ggml_paths:
             if ggml_path.exists():
                 try:
-                    ggml_lib = ctypes.CDLL(str(ggml_path))
+                    # Load GGML with RTLD_GLOBAL so whisper can find it
+                    ggml_lib = ctypes.CDLL(str(ggml_path), mode=ctypes.RTLD_GLOBAL)
                     break
                 except Exception as e:
                     # Continue trying other paths
                     continue
         
         if not ggml_lib:
-            # Don't print warning - just let whisper loading handle the error
-            pass
+            # List what files are actually available
+            available_files = [f.name for f in bin_dir.iterdir() if f.is_file()] if bin_dir.exists() else []
+            raise RuntimeError(f"Could not load GGML library. Available files in bin/: {available_files}")
     
     _lib_paths = [
         _base_path / "bin" / f"lib{lib_base_name}{lib_ext}",
@@ -46,11 +55,22 @@ def _load_shared_library(lib_base_name: str):
     for _lib_path in _lib_paths:
         if _lib_path.exists():
             try:
-                return ctypes.CDLL(str(_lib_path))
+                # Load with RTLD_GLOBAL for proper symbol resolution
+                return ctypes.CDLL(str(_lib_path), mode=ctypes.RTLD_GLOBAL)
             except Exception as e:
                 raise RuntimeError(f"Failed to load shared library '{_lib_path}': {e}")
 
-    raise FileNotFoundError(f"Shared library with base name '{lib_base_name}' not found")
+    # List available files for debugging
+    available_files = []
+    if _base_path.exists():
+        bin_dir = _base_path / "bin"
+        if bin_dir.exists():
+            available_files = [f.name for f in bin_dir.iterdir() if f.is_file()]
+    
+    raise FileNotFoundError(
+        f"Shared library with base name '{lib_base_name}' not found. "
+        f"Available files in bin/: {available_files}"
+    )
 
 # Load the library
 _lib_base_name = "whisper"
